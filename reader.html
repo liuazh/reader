@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>阅读札记</title>
+<script>
+  // 尽早应用主题，避免首屏闪烁；默认 ios-dark
+  (function() {
+    var t = localStorage.getItem('reader-theme') || 'ios-dark';
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
+<style>
+  :root {
+    /* 默认：暖色护眼底（米黄纸张感） */
+    --bg: #f4ecd8;
+    --bg-sidebar: #ebe1c8;
+    --text: #3a3226;
+    --reading-font: "Songti SC", "SimSun", "STSong", serif;
+    --text-soft: #6b6050;
+    --accent: #8b5a2b;
+    --accent-hover: #a06a33;
+    --border: #d8cba8;
+    --card: #f9f3e3;
+    --shadow: rgba(90, 70, 30, 0.08);
+  }
+
+  [data-theme="dark"] {
+    --bg: #1f1d1b;
+    --bg-sidebar: #181614;
+    --text: #d4ccba;
+    --text-soft: #8a8275;
+    --accent: #c9a36b;
+    --accent-hover: #d8b67c;
+    --border: #2e2a26;
+    --card: #25221f;
+    --shadow: rgba(0, 0, 0, 0.3);
+  }
+
+  [data-theme="ios-dark"] {
+    /* iOS 暗色风格：深灰底 + 系统蓝强调 */
+    --bg: #1c1c1e;
+    --bg-sidebar: #161617;
+    --text: #e5e5ea;
+    --text-soft: #8e8e93;
+    --accent: #0a84ff;
+    --accent-hover: #3d9dff;
+    --border: #2c2c2e;
+    --card: #2c2c2e;
+    --shadow: rgba(0, 0, 0, 0.4);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    font-family: var(--reading-font);
+    background: var(--bg);
+    color: var(--text);
+    transition: background 0.3s, color 0.3s;
+    line-height: 1.8;
+  }
+
+  .layout {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ===== 侧边栏 ===== */
+  .sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    background: var(--bg-sidebar);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s;
+  }
+
+  .sidebar-header {
+    padding: 20px 20px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+
+  .sidebar-sub {
+    font-size: 12px;
+    color: var(--text-soft);
+    margin-top: 4px;
+  }
+
+  .theme-switch {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 14px;
+  }
+
+  .theme-btn {
+    flex: 1 1 calc(33.333% - 4px);
+    min-width: 70px;
+    padding: 6px 4px;
+    font-size: 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-soft);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+    font-family: inherit;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .theme-btn:hover { color: var(--text); border-color: var(--accent); }
+  .theme-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .search-box {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .search-box input {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+  }
+
+  .search-box input:focus { border-color: var(--accent); }
+
+  .article-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+
+  .article-list::-webkit-scrollbar { width: 6px; }
+  .article-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .article-item {
+    padding: 12px 20px;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: all 0.15s;
+  }
+
+  .article-item:hover { background: var(--card); }
+  .article-item.active {
+    background: var(--card);
+    border-left-color: var(--accent);
+  }
+
+  .article-item-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 4px;
+    line-height: 1.5;
+  }
+
+  .article-item-meta {
+    font-size: 11px;
+    color: var(--text-soft);
+    display: flex;
+    gap: 10px;
+  }
+
+  .article-item-tag {
+    display: inline-block;
+    padding: 1px 6px;
+    background: var(--border);
+    color: var(--text-soft);
+    border-radius: 2px;
+    font-size: 10px;
+  }
+
+  /* ===== 主阅读区 ===== */
+  .main {
+    flex: 1;
+    overflow-y: auto;
+    position: relative;
+  }
+
+  .main::-webkit-scrollbar { width: 8px; }
+  .main::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .menu-toggle {
+    display: none;
+    position: fixed;
+    top: 14px;
+    left: 14px;
+    z-index: 100;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 38px;
+    height: 38px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 18px;
+  }
+
+  .article-content {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 56px 64px 120px;
+  }
+
+  /* 超宽屏进一步放宽 */
+  @media (min-width: 1600px) {
+    .article-content { max-width: 1180px; padding-left: 80px; padding-right: 80px; }
+  }
+
+  /* 中等屏避免两侧过紧 */
+  @media (max-width: 1100px) {
+    .article-content { padding-left: 48px; padding-right: 48px; }
+  }
+
+  /* ===== 全屏阅读模式 ===== */
+  body.fullscreen-mode .sidebar { display: none; }
+  body.fullscreen-mode .menu-toggle { display: none; }
+  body.fullscreen-mode .main { width: 100%; }
+
+  body.fullscreen-mode .article-content {
+    max-width: 100%;
+    margin: 0;
+    padding: 48px 6vw 120px;
+  }
+
+  /* 全屏模式下超宽屏进一步利用宽度，但限制单行不超过最佳阅读字数 */
+  @media (min-width: 1400px) {
+    body.fullscreen-mode .article-content { padding-left: 8vw; padding-right: 8vw; }
+  }
+  @media (min-width: 1800px) {
+    body.fullscreen-mode .article-content {
+      padding-left: 12vw;
+      padding-right: 12vw;
+    }
+  }
+
+  /* 全屏模式下的退出按钮 */
+  .exit-fullscreen {
+    display: none;
+    position: fixed;
+    top: 18px;
+    right: 18px;
+    z-index: 120;
+    padding: 8px 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text-soft);
+    border-radius: 20px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+    box-shadow: 0 4px 16px var(--shadow);
+    transition: color 0.2s, border-color 0.2s, opacity 0.3s;
+  }
+  .exit-fullscreen:hover { color: var(--accent); border-color: var(--accent); }
+  body.fullscreen-mode .exit-fullscreen { display: inline-flex; align-items: center; gap: 5px; }
+
+  /* 全屏模式下右下角工具栏收起，鼠标移近再浮出 */
+  body.fullscreen-mode .font-controls {
+    opacity: 0;
+    transform: translateY(20px);
+    pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+  }
+  body.fullscreen-mode .font-controls:hover,
+  body.fullscreen-mode .font-controls:focus-within {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  .article-header {
+    margin-bottom: 36px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .article-title {
+    font-size: 32px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--text);
+    margin-bottom: 14px;
+  }
+
+  .article-meta {
+    font-size: 13px;
+    color: var(--text-soft);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .article-meta span { display: inline-flex; align-items: center; gap: 4px; }
+
+  /* iOS 风格简约 meta：用细分隔点代替图标 */
+  .article-meta .meta-author::before,
+  .article-meta .meta-source::before,
+  .article-meta .meta-date::before {
+    content: "";
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--text-soft);
+    opacity: 0.6;
+    margin-right: 7px;
+    flex-shrink: 0;
+  }
+  .article-meta .meta-date { font-variant-numeric: tabular-nums; letter-spacing: 0.3px; }
+
+  .article-body {
+    font-size: 16.5px;
+    line-height: 1.9;
+    color: var(--text);
+  }
+
+  .article-body p {
+    margin-bottom: 22px;
+    text-align: justify;
+  }
+
+  .article-body h2 {
+    font-size: 22px;
+    font-weight: 600;
+    margin: 40px 0 16px;
+    color: var(--accent);
+    padding-left: 12px;
+    border-left: 4px solid var(--accent);
+  }
+
+  .article-body h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 30px 0 12px;
+    color: var(--text);
+  }
+
+  .article-body blockquote {
+    margin: 24px 0;
+    padding: 14px 20px;
+    background: var(--card);
+    border-left: 3px solid var(--accent);
+    color: var(--text-soft);
+    font-style: italic;
+    border-radius: 0 4px 4px 0;
+  }
+
+  .article-body code {
+    background: var(--card);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 14px;
+    font-family: "JetBrains Mono", Consolas, monospace;
+    color: var(--accent);
+  }
+
+  .article-body pre {
+    background: var(--card);
+    padding: 16px 20px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 20px 0;
+    border: 1px solid var(--border);
+  }
+
+  .article-body pre code {
+    background: transparent;
+    padding: 0;
+    color: var(--text);
+  }
+
+  .article-body ul, .article-body ol {
+    margin: 16px 0 22px;
+    padding-left: 28px;
+  }
+
+  .article-body li { margin-bottom: 8px; }
+
+  .article-body a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px dashed var(--accent);
+  }
+
+  .article-body a:hover { color: var(--accent-hover); border-bottom-style: solid; }
+
+  .article-body img {
+    max-width: 100%;
+    border-radius: 6px;
+    margin: 20px 0;
+    box-shadow: 0 4px 16px var(--shadow);
+  }
+
+  .article-body hr {
+    border: none;
+    height: 1px;
+    background: var(--border);
+    margin: 36px 0;
+  }
+
+  /* 导航 */
+  .nav-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 60px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+
+  .nav-btn {
+    padding: 10px 18px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    transition: all 0.2s;
+  }
+
+  .nav-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* 字号控制 */
+  .font-controls {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    display: flex;
+    gap: 6px;
+    background: var(--card);
+    padding: 6px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px var(--shadow);
+    z-index: 50;
+  }
+
+  .font-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+
+  .font-btn:hover { background: var(--bg); }
+
+  .font-select {
+    height: 32px;
+    max-width: 160px;
+    padding: 0 6px;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+    outline: none;
+    border-radius: 4px;
+  }
+
+  .font-select:hover { background: var(--bg); }
+  .font-select option { background: var(--card); color: var(--text); }
+
+  .empty-state {
+    text-align: center;
+    padding: 100px 20px;
+    color: var(--text-soft);
+  }
+
+  /* 操作栏 */
+  .action-bar {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .add-btn {
+    flex: 1;
+    padding: 8px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    transition: background 0.2s;
+  }
+
+  .add-btn:hover { background: var(--accent-hover); }
+
+  .count-badge {
+    font-size: 11px;
+    color: var(--text-soft);
+    white-space: nowrap;
+  }
+
+  /* 数据工具栏：导出 / 导入 */
+  .data-bar {
+    display: flex;
+    gap: 6px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .data-btn {
+    flex: 1;
+    padding: 6px 8px;
+    background: transparent;
+    color: var(--text-soft);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 12px;
+    transition: all 0.2s;
+  }
+
+  .data-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* 模态框 */
+  .modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 300;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .modal.open { display: flex; }
+
+  .modal-content {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 100%;
+    max-width: 600px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 28px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  }
+
+  .modal-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 20px;
+  }
+
+  .form-group { margin-bottom: 16px; }
+
+  .form-group label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-soft);
+    margin-bottom: 6px;
+  }
+
+  .form-group input,
+  .form-group textarea {
+    width: 100%;
+    padding: 9px 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+  }
+
+  .form-group input:focus,
+  .form-group textarea:focus { border-color: var(--accent); }
+
+  .form-group textarea { resize: vertical; min-height: 240px; line-height: 1.7; }
+
+  .form-row { display: flex; gap: 12px; }
+  .form-row .form-group { flex: 1; }
+
+  .form-hint {
+    font-size: 11px;
+    color: var(--text-soft);
+    margin-top: 4px;
+    line-height: 1.6;
+  }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 22px;
+  }
+
+  .btn-primary {
+    padding: 9px 22px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+  }
+
+  .btn-primary:hover { background: var(--accent-hover); }
+
+  .btn-secondary {
+    padding: 9px 22px;
+    background: transparent;
+    color: var(--text-soft);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+  }
+
+  .btn-secondary:hover { color: var(--text); border-color: var(--text-soft); }
+
+  /* 移动端 */
+  @media (max-width: 768px) {
+    .sidebar {
+      position: fixed;
+      left: 0;
+      top: 0;
+      height: 100%;
+      z-index: 200;
+      transform: translateX(-100%);
+      box-shadow: 4px 0 20px rgba(0,0,0,0.2);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .menu-toggle { display: block; }
+    .article-content { padding: 70px 20px 100px; }
+    .article-title { font-size: 24px; }
+    .article-body { font-size: 15.5px; }
+  }
+</style>
+</head>
+<body>
+
+<button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+<button class="exit-fullscreen" onclick="toggleFullscreen()" title="退出全屏阅读">✕ 退出全屏</button>
+
+<div class="layout">
+  <!-- 侧边栏 -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-title">阅读札记</div>
+      <div class="sidebar-sub">慢读 · 细品 · 沉思</div>
+      <div class="theme-switch">
+        <button class="theme-btn" data-theme="light">护眼底</button>
+        <button class="theme-btn" data-theme="dark">夜间</button>
+        <button class="theme-btn active" data-theme="ios-dark">iOS 暗色</button>
+      </div>
+    </div>
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="搜索标题或标签…" oninput="filterArticles()">
+    </div>
+    <div class="action-bar">
+      <button class="add-btn" onclick="openModal()">＋ 添加文章</button>
+      <span class="count-badge" id="totalCount">0 篇</span>
+    </div>
+    <div class="data-bar">
+      <button class="data-btn" onclick="exportData()">⬇ 导出备份</button>
+      <button class="data-btn" onclick="document.getElementById('importFile').click()">⬆ 导入</button>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+    </div>
+    <div class="article-list" id="articleList"></div>
+  </aside>
+
+  <!-- 主阅读区 -->
+  <main class="main">
+    <article class="article-content" id="articleContent"></article>
+    <div class="font-controls">
+      <select class="font-select" id="fontSelect" onchange="changeFontFamily(this.value)" title="切换字体"></select>
+      <button class="font-btn" onclick="changeFont(-1)" title="缩小字号">A-</button>
+      <button class="font-btn" onclick="changeFont(1)" title="放大字号">A+</button>
+      <button class="font-btn" onclick="resetFont()" title="复位字体和字号">↺</button>
+      <button class="font-btn" onclick="toggleFullscreen()" title="全屏阅读" id="fullscreenBtn">⛶</button>
+    </div>
+  </main>
+</div>
+
+<!-- 添加文章模态框 -->
+<div class="modal" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-content">
+    <div class="modal-title">添加文章</div>
+    <form id="articleForm" onsubmit="saveArticle(event)">
+      <div class="form-group">
+        <label>标题 *</label>
+        <input type="text" id="f-title" placeholder="文章标题" required>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>作者</label>
+          <input type="text" id="f-author" placeholder="可留空">
+        </div>
+        <div class="form-group">
+          <label>来源</label>
+          <input type="text" id="f-source" placeholder="可留空">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>日期</label>
+          <input type="date" id="f-date">
+        </div>
+        <div class="form-group">
+          <label>标签</label>
+          <input type="text" id="f-tags" placeholder="逗号分隔，如：思考, 随笔">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>正文 *</label>
+        <textarea id="f-content" placeholder="在此输入正文…" required></textarea>
+        <div class="form-hint">
+          简易格式：## 小标题 · &gt; 引用 · - 列表项 · 1. 有序列表 · **加粗** · *斜体* · `代码`。空行分段。
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" onclick="closeModal()">取消</button>
+        <button type="submit" class="btn-primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   文章数据区
+   ---------------------------------------------------------
+   添加新文章：复制下面一个 { ... } 对象，粘贴到数组中即可。
+   - id:        唯一，建议用日期+序号，如 "20260723-2"
+   - title:     文章标题
+   - author:    作者（可留空 ""）
+   - source:    来源（可留空 ""）
+   - date:      收录日期
+   - tags:      标签数组，如 ["思考", "随笔"]
+   - content:   正文，用 HTML 书写。支持 p/h2/h3/blockquote/ul/ol/code/pre/a/img/hr
+   ========================================================= */
+const ARTICLES = [
+  {
+    id: "20260723-1",
+    title: "示例文章：如何阅读一本书",
+    author: "莫提默·艾德勒",
+    source: "《如何阅读一本书》",
+    date: "2026-07-23",
+    tags: ["方法", "阅读"],
+    content: `
+      <p>阅读是一种主动的活动。越主动，效果越好。读者对自己以及自己面前的书籍提出的要求越多，获得的就越多。</p>
+
+      <h2>阅读的四个层次</h2>
+      <p>阅读可分为四个层次：基础阅读、检视阅读、分析阅读、主题阅读。层次之间是渐进的，高层次包含低层次。</p>
+
+      <h3>基础阅读</h3>
+      <p>认字与理解句子的能力，通常在小学阶段完成。这是阅读的起点，但绝非终点。</p>
+
+      <h3>检视阅读</h3>
+      <p>在有限时间内抓住一本书的骨架。先看书名、序言、目录，再读索引与出版说明，最后挑几个关键章节略读。</p>
+
+      <blockquote>在阅读一本书之前，先问自己：这是一本什么样的书？作者想解决什么问题？</blockquote>
+
+      <h2>主动阅读的四个问题</h2>
+      <ol>
+        <li>整体来说，这本书到底在谈什么？</li>
+        <li>作者细部说了什么，怎么说的？</li>
+        <li>这本书说得有道理吗？是全部有道理，还是部分？</li>
+        <li>这本书跟我有什么关系？</li>
+      </ol>
+
+      <p>带着问题阅读，并尝试用自己的话回答，是检验理解的最佳方式。</p>
+
+      <hr>
+
+      <p><em>这是一篇示例文章。你可以在源码的 <code>ARTICLES</code> 数组中替换或新增内容。</em></p>
+    `
+  },
+  {
+    id: "20260723-2",
+    title: "示例文章：论专注",
+    author: "",
+    source: "",
+    date: "2026-07-23",
+    tags: ["随笔", "思考"],
+    content: `
+      <p>专注是这个时代最稀缺的能力。我们被信息淹没，却被理解饿死。</p>
+
+      <h2>分流的代价</h2>
+      <p>每一次注意力的切换，都伴随着认知成本的累积。研究表明，从一次打扰中恢复到深度状态，平均需要 23 分钟。</p>
+
+      <h2>如何训练</h2>
+      <ul>
+        <li>固定时间、固定地点做最难的事</li>
+        <li>关闭通知，把手机放到视线之外</li>
+        <li>单线程工作，一次只做一件事</li>
+        <li>记录分心念头，稍后统一处理</li>
+      </ul>
+
+      <blockquote>专注不是天赋，而是一种可以训练的肌肉。</blockquote>
+
+      <p>当你能持续 90 分钟不被打扰地完成一件事，你就已经领先了大多数人。</p>
+    `
+  }
+];
+
+/* =========================================================
+   以下为阅读器逻辑，一般无需修改
+   ========================================================= */
+let currentIndex = 0;
+let fontSize = 16.5;
+let editingId = null; // 正在编辑的文章 id；null 表示新增
+
+const STORAGE_CUSTOM = 'reader-custom-articles';
+const STORAGE_OVERRIDES = 'reader-overrides';     // 对内置文章的编辑覆盖 {id: article}
+const STORAGE_DELETED = 'reader-deleted-ids';      // 已删除的内置文章 id 列表
+
+function getCustomArticles() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_CUSTOM) || '[]'); } catch(e) { return []; }
+}
+function saveCustomArticles(arr) {
+  localStorage.setItem(STORAGE_CUSTOM, JSON.stringify(arr));
+}
+function getOverrides() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_OVERRIDES) || '{}'); } catch(e) { return {}; }
+}
+function saveOverrides(obj) {
+  localStorage.setItem(STORAGE_OVERRIDES, JSON.stringify(obj));
+}
+function getDeletedIds() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_DELETED) || '[]'); } catch(e) { return []; }
+}
+function saveDeletedIds(arr) {
+  localStorage.setItem(STORAGE_DELETED, JSON.stringify(arr));
+}
+
+function isBuiltin(id) {
+  return ARTICLES.some(a => a.id === id);
+}
+
+// 合并：内置文章（应用覆盖、过滤已删除）+ 用户自定义文章
+function getAllArticles() {
+  const overrides = getOverrides();
+  const deleted = getDeletedIds();
+  const builtin = ARTICLES
+    .filter(a => !deleted.includes(a.id))
+    .map(a => overrides[a.id] || a);
+  return [...builtin, ...getCustomArticles()];
+}
+
+function findArticleById(id) {
+  return getAllArticles().find(a => a.id === id);
+}
+
+function renderList() {
+  const articles = getAllArticles();
+  const list = document.getElementById('articleList');
+  list.innerHTML = articles.map((a, i) => `
+    <div class="article-item ${i === currentIndex ? 'active' : ''}" onclick="selectArticle(${i})">
+      <div class="article-item-title">${a.title}</div>
+      <div class="article-item-meta">
+        <span>${a.date}</span>
+        ${a.tags.map(t => `<span class="article-item-tag">${t}</span>`).join('')}
+      </div>
+    </div>
+  `).join('');
+  document.getElementById('totalCount').textContent = articles.length + ' 篇';
+}
+
+function selectArticle(i) {
+  const articles = getAllArticles();
+  if (i < 0 || i >= articles.length) i = 0;
+  currentIndex = i;
+  const a = articles[i];
+  const content = document.getElementById('articleContent');
+  const metaParts = [];
+  if (a.author) metaParts.push(`<span class="meta-author">${a.author}</span>`);
+  if (a.source) metaParts.push(`<span class="meta-source">${a.source}</span>`);
+  metaParts.push(`<span class="meta-date"><time datetime="${a.date}">${a.date}</time></span>`);
+  metaParts.push(a.tags.map(t => `<span class="article-item-tag">${t}</span>`).join(''));
+
+  content.innerHTML = `
+    <div class="article-header">
+      <h1 class="article-title">${a.title}</h1>
+      <div class="article-meta">${metaParts.join('')}</div>
+    </div>
+    <div class="article-body">${a.content}</div>
+    <div class="nav-footer">
+      <button class="nav-btn" ${i === 0 ? 'disabled' : ''} onclick="selectArticle(${i - 1})">← 上一篇</button>
+      <span style="color:var(--text-soft);font-size:13px;align-self:center;">${i + 1} / ${articles.length}</span>
+      <button class="nav-btn" ${i === articles.length - 1 ? 'disabled' : ''} onclick="selectArticle(${i + 1})">下一篇 →</button>
+    </div>
+    <div style="margin-top:18px;display:flex;gap:10px;justify-content:center;">
+      <button class="btn-secondary" onclick="openEditModal('${a.id}')">✎ 编辑</button>
+      <button class="btn-secondary" style="color:#c0392b;border-color:#c0392b;" onclick="deleteArticle('${a.id}')">🗑 删除</button>
+    </div>
+  `;
+  document.querySelectorAll('.article-item').forEach((el, idx) => {
+    el.classList.toggle('active', idx === i);
+  });
+  document.querySelector('.main').scrollTop = 0;
+  if (window.innerWidth <= 768) closeSidebar();
+}
+
+function filterArticles() {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const articles = getAllArticles();
+  const items = document.querySelectorAll('.article-item');
+  items.forEach((el, i) => {
+    const a = articles[i];
+    const text = (a.title + ' ' + a.tags.join(' ') + ' ' + (a.author || '')).toLowerCase();
+    el.style.display = text.includes(q) ? '' : 'none';
+  });
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+}
+
+/* ===== 全屏阅读模式 ===== */
+function toggleFullscreen() {
+  const isFs = document.body.classList.toggle('fullscreen-mode');
+  document.getElementById('fullscreenBtn').textContent = isFs ? '⤢' : '⛶';
+  document.getElementById('fullscreenBtn').title = isFs ? '退出全屏阅读' : '全屏阅读';
+  document.querySelector('.main').scrollTop = 0;
+}
+
+/* 字体与字号：常用字体 + 复位 */
+const DEFAULT_FONT = 'default';
+const DEFAULT_FONT_VALUE = '"Songti SC", "SimSun", "STSong", serif';   // 默认宋体
+const DEFAULT_FONT_SIZE = 16.5;
+const CN_FALLBACK_SERIF = '"Songti SC", "SimSun", serif';           // 英文衬线回退到中文宋体
+const CN_FALLBACK_SANS = '"PingFang SC", "Microsoft YaHei", sans-serif'; // 英文无衬线回退到中文黑体
+
+const FONT_OPTIONS = [
+  // —— 中文字体 ——
+  { value: DEFAULT_FONT, label: '宋体（默认）', family: DEFAULT_FONT_VALUE, group: '中文字体' },
+  { value: 'sans-microsoft', label: '微软雅黑', family: '"Microsoft YaHei", "PingFang SC", sans-serif', group: '中文字体' },
+  { value: 'sans-pingfang', label: '苹方', family: '"PingFang SC", "Microsoft YaHei", sans-serif', group: '中文字体' },
+  { value: 'sans-stxihei', label: '华文细黑', family: '"STXihei", "Heiti SC", "Microsoft YaHei", sans-serif', group: '中文字体' },
+
+  // —— 英文字体 ——
+  { value: 'serif-times', label: 'Times New Roman', family: `"Times New Roman", Times, ${CN_FALLBACK_SERIF}`, group: '英文字体' },
+  { value: 'sans-arial', label: 'Arial', family: `Arial, Helvetica, ${CN_FALLBACK_SANS}`, group: '英文字体' },
+  { value: 'sans-helvetica', label: 'Helvetica', family: `Helvetica, Arial, ${CN_FALLBACK_SANS}`, group: '英文字体' }
+];
+
+function initFontSelect() {
+  const sel = document.getElementById('fontSelect');
+  const groups = [];
+  FONT_OPTIONS.forEach(f => { if (!groups.includes(f.group)) groups.push(f.group); });
+  sel.innerHTML = groups.map(g =>
+    `<optgroup label="${g}">` +
+    FONT_OPTIONS.filter(f => f.group === g).map(f => `<option value="${f.value}">${f.label}</option>`).join('') +
+    `</optgroup>`
+  ).join('');
+  const saved = localStorage.getItem('reader-font') || DEFAULT_FONT;
+  sel.value = FONT_OPTIONS.some(f => f.value === saved) ? saved : DEFAULT_FONT;
+  applyFont();
+}
+
+function changeFontFamily(value) {
+  localStorage.setItem('reader-font', value);
+  applyFont();
+}
+
+function applyFont() {
+  const value = localStorage.getItem('reader-font') || DEFAULT_FONT;
+  const opt = FONT_OPTIONS.find(f => f.value === value) || FONT_OPTIONS[0];
+  document.documentElement.style.setProperty('--reading-font', opt.family);
+  // 同步字号到正文
+  const body = document.querySelector('.article-body');
+  if (body) body.style.fontSize = fontSize + 'px';
+}
+
+function changeFont(delta) {
+  fontSize = Math.max(13, Math.min(22, fontSize + delta));
+  localStorage.setItem('reader-font-size', fontSize);
+  const body = document.querySelector('.article-body');
+  if (body) body.style.fontSize = fontSize + 'px';
+}
+
+function resetFont() {
+  fontSize = DEFAULT_FONT_SIZE;
+  localStorage.setItem('reader-font-size', fontSize);
+  localStorage.setItem('reader-font', DEFAULT_FONT);
+  document.getElementById('fontSelect').value = DEFAULT_FONT;
+  applyFont();
+}
+
+/* ===== 添加 / 编辑 / 删除文章 ===== */
+function openModal() {
+  editingId = null;
+  document.querySelector('.modal-title').textContent = '添加文章';
+  document.getElementById('articleForm').reset();
+  document.getElementById('f-date').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('modal').classList.add('open');
+  setTimeout(() => document.getElementById('f-title').focus(), 50);
+}
+
+function openEditModal(id) {
+  const a = findArticleById(id);
+  if (!a) return;
+  editingId = id;
+  document.querySelector('.modal-title').textContent = '编辑文章';
+  document.getElementById('f-title').value = a.title;
+  document.getElementById('f-author').value = a.author || '';
+  document.getElementById('f-source').value = a.source || '';
+  document.getElementById('f-date').value = a.date;
+  document.getElementById('f-tags').value = a.tags.join(', ');
+  document.getElementById('f-content').value = htmlToSimple(a.content);
+  document.getElementById('modal').classList.add('open');
+  setTimeout(() => document.getElementById('f-title').focus(), 50);
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+  document.getElementById('articleForm').reset();
+  editingId = null;
+}
+
+function saveArticle(e) {
+  e.preventDefault();
+  const title = document.getElementById('f-title').value.trim();
+  const content = document.getElementById('f-content').value.trim();
+  if (!title || !content) { alert('标题和正文不能为空'); return; }
+  const tags = document.getElementById('f-tags').value.split(/[,，]/).map(t => t.trim()).filter(Boolean);
+  const article = {
+    id: editingId || ('c-' + Date.now()),
+    title,
+    author: document.getElementById('f-author').value.trim(),
+    source: document.getElementById('f-source').value.trim(),
+    date: document.getElementById('f-date').value || new Date().toISOString().slice(0, 10),
+    tags,
+    content: simpleMarkdown(content)
+  };
+
+  if (editingId) {
+    // 编辑模式
+    if (isBuiltin(editingId)) {
+      const overrides = getOverrides();
+      overrides[editingId] = article;
+      saveOverrides(overrides);
+    } else {
+      const custom = getCustomArticles();
+      const idx = custom.findIndex(c => c.id === editingId);
+      if (idx >= 0) { custom[idx] = article; saveCustomArticles(custom); }
+    }
+  } else {
+    // 新增
+    const custom = getCustomArticles();
+    custom.push(article);
+    saveCustomArticles(custom);
+  }
+
+  closeModal();
+  const all = getAllArticles();
+  const idx = all.findIndex(x => x.id === article.id);
+  renderList();
+  selectArticle(idx >= 0 ? idx : 0);
+}
+
+function deleteArticle(id) {
+  const a = findArticleById(id);
+  if (!a) return;
+  if (!confirm('确定删除「' + a.title + '」？\n\n内置文章删除后可在源码中恢复；自定义文章删除后无法找回。')) return;
+
+  if (isBuiltin(id)) {
+    const deleted = getDeletedIds();
+    if (!deleted.includes(id)) { deleted.push(id); saveDeletedIds(deleted); }
+    // 同时清除可能存在的覆盖
+    const overrides = getOverrides();
+    if (overrides[id]) { delete overrides[id]; saveOverrides(overrides); }
+  } else {
+    const custom = getCustomArticles();
+    const idx = custom.findIndex(c => c.id === id);
+    if (idx >= 0) { custom.splice(idx, 1); saveCustomArticles(custom); }
+  }
+
+  const newLen = getAllArticles().length;
+  if (currentIndex >= newLen) currentIndex = newLen - 1;
+  if (currentIndex < 0) currentIndex = 0;
+  renderList();
+  selectArticle(currentIndex);
+}
+
+/* ===== 导出 / 导入（跨机器迁移文章）===== */
+function exportData() {
+  const data = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    customArticles: getCustomArticles(),
+    overrides: getOverrides(),
+    deletedIds: getDeletedIds()
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const d = new Date();
+  const stamp = d.getFullYear() + ('0'+(d.getMonth()+1)).slice(-2) + ('0'+d.getDate()).slice(-2);
+  a.download = 'reader-backup-' + stamp + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function importData(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data || typeof data !== 'object') throw new Error('格式错误');
+
+      // 合并策略：以导入文件为准，覆盖本地同名 id 的文章
+      const incomingCustom = Array.isArray(data.customArticles) ? data.customArticles : [];
+      const incomingOverrides = data.overrides && typeof data.overrides === 'object' ? data.overrides : {};
+      const incomingDeleted = Array.isArray(data.deletedIds) ? data.deletedIds : [];
+
+      const localCustom = getCustomArticles();
+      const localOverrides = getOverrides();
+      const localDeleted = getDeletedIds();
+
+      // 自定义文章：按 id 合并（导入的覆盖本地同 id）
+      const customMap = {};
+      localCustom.forEach(c => { customMap[c.id] = c; });
+      incomingCustom.forEach(c => { customMap[c.id] = c; });
+      const mergedCustom = Object.values(customMap);
+
+      // 覆盖项：合并
+      const mergedOverrides = Object.assign({}, localOverrides, incomingOverrides);
+
+      // 删除列表：合并去重
+      const mergedDeleted = Array.from(new Set([...localDeleted, ...incomingDeleted]));
+
+      const totalIncoming = incomingCustom.length + Object.keys(incomingOverrides).length;
+      if (!confirm('即将导入 ' + totalIncoming + ' 篇文章记录（含对内置文章的编辑）。\n\n相同标题的文章会被导入版本覆盖。是否继续？')) {
+        e.target.value = '';
+        return;
+      }
+
+      saveCustomArticles(mergedCustom);
+      saveOverrides(mergedOverrides);
+      saveDeletedIds(mergedDeleted);
+
+      renderList();
+      selectArticle(0);
+      alert('导入完成！共 ' + getAllArticles().length + ' 篇文章。');
+    } catch (err) {
+      alert('导入失败：文件格式不正确。\n' + err.message);
+    }
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+// HTML 正文反向转回简易文本，便于编辑
+function htmlToSimple(html) {
+  let s = html || '';
+  s = s.replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, '\n## $1\n');
+  s = s.replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, '\n### $1\n');
+  s = s.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, (m, c) => '\n> ' + c.replace(/<[^>]+>/g,'').trim() + '\n');
+  s = s.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, '- $1\n');
+  s = s.replace(/<\/?[uo]l[^>]*>/gi, '');
+  s = s.replace(/<\/p>\s*/gi, '\n\n');
+  s = s.replace(/<p[^>]*>/gi, '');
+  s = s.replace(/<strong[^>]*>([\s\S]*?)<\/strong>/gi, '**$1**');
+  s = s.replace(/<em[^>]*>([\s\S]*?)<\/em>/gi, '*$1*');
+  s = s.replace(/<code[^>]*>([\s\S]*?)<\/code>/gi, '`$1`');
+  s = s.replace(/<br\s*\/?>/gi, '\n');
+  s = s.replace(/<[^>]+>/g, '');
+  s = s.replace(/\n{3,}/g, '\n\n');
+  return s.trim();
+}
+
+// 简易格式转换：换行分段，## / ### 标题，> 引用，- / * 列表，1. 有序列表，**加粗** *斜体* `代码`
+function simpleMarkdown(text) {
+  const lines = text.split(/\r?\n/);
+  let html = '';
+  let listType = null;
+  const closeList = () => { if (listType) { html += `</${listType}>`; listType = null; } };
+  for (let raw of lines) {
+    const line = raw.trim();
+    if (!line) { closeList(); continue; }
+    if (line.startsWith('### ')) { closeList(); html += `<h3>${inline(line.slice(4))}</h3>`; }
+    else if (line.startsWith('## ')) { closeList(); html += `<h2>${inline(line.slice(3))}</h2>`; }
+    else if (line.startsWith('> ')) { closeList(); html += `<blockquote>${inline(line.slice(2))}</blockquote>`; }
+    else if (line.startsWith('- ') || line.startsWith('* ')) {
+      if (listType !== 'ul') { closeList(); html += '<ul>'; listType = 'ul'; }
+      html += `<li>${inline(line.slice(2))}</li>`;
+    }
+    else if (/^\d+\.\s/.test(line)) {
+      if (listType !== 'ol') { closeList(); html += '<ol>'; listType = 'ol'; }
+      html += `<li>${inline(line.replace(/^\d+\.\s/, ''))}</li>`;
+    }
+    else { closeList(); html += `<p>${inline(line)}</p>`; }
+  }
+  closeList();
+  return html;
+}
+
+function inline(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+          .replace(/\*(.+?)\*/g,'<em>$1</em>')
+          .replace(/`(.+?)`/g,'<code>$1</code>');
+}
+
+// 主题切换
+document.querySelectorAll('.theme-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const theme = btn.dataset.theme;
+    document.documentElement.setAttribute('data-theme', theme);
+    document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    localStorage.setItem('reader-theme', theme);
+  });
+});
+
+// 键盘导航
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'Escape') {
+    if (document.getElementById('modal').classList.contains('open')) closeModal();
+    else if (document.body.classList.contains('fullscreen-mode')) toggleFullscreen();
+  }
+  if (e.key === 'ArrowLeft' && currentIndex > 0) selectArticle(currentIndex - 1);
+  if (e.key === 'ArrowRight' && currentIndex < getAllArticles().length - 1) selectArticle(currentIndex + 1);
+  // 按 F 快速切换全屏
+  if (e.key === 'f' || e.key === 'F') toggleFullscreen();
+});
+
+// 初始化（默认 iOS 暗色）
+const savedTheme = localStorage.getItem('reader-theme') || 'ios-dark';
+document.documentElement.setAttribute('data-theme', savedTheme);
+document.querySelectorAll('.theme-btn').forEach(b => {
+  b.classList.toggle('active', b.dataset.theme === savedTheme);
+});
+const savedFontSize = parseFloat(localStorage.getItem('reader-font-size'));
+if (!isNaN(savedFontSize)) fontSize = savedFontSize;
+initFontSelect();
+renderList();
+selectArticle(0);
+</script>
+
+</body>
+</html>
